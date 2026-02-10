@@ -57,3 +57,137 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_instructor(self):
         """Check if user is an instructor."""
         return self.role == 'instructor'
+    
+class Course(models.Model):
+    """
+    Represents a course that can be created by instructors 
+    """
+
+    LEVEL_CHOICES = (
+        ('beginner', 'Beginner'),
+        ('intermediate', 'Intermediate'),
+        ('advanced', 'Advanced'),
+    )
+
+    STATUS_CHOICES = (
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('archived', 'Archived'),
+    )
+
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, unique=True)
+    description = models.TextField()
+    instructor = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='courses_created',
+        limit_choices_to={'role': 'instructor'}
+    )
+    thumbnail = models.ImageField(upload_to='courses/thumbnails/', blank=True, null=True)
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='beginner')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Course'
+        verbose_name_plural = 'Courses'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['slug']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return self.title
+    
+    @property 
+    def total_modules(self):
+        """Return the total number of modules in this course."""
+        return self.modules.count()
+    
+    @property
+    def total_lessons(self):
+        """Return the total number of lessons across all modules."""
+        return sum(module.lessons.count() for module in self.modules.all())
+    
+    @property
+    def total_duration(self):
+        """Returns the total duration of all lessons in minutes."""
+        total = sum(lesson.duration_minutes for module in self.modules.all() for lesson in module.lessons.all() if lesson.duration_minutes)
+        return total
+    
+
+class Module(models.Model):
+    """
+    Represents a module/section within a course.
+    """
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='modules'
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta: 
+        verbose_name = 'Module'
+        verbose_name_plural = 'Modules'
+        ordering = ['order']
+        unique_together = ['course', 'order']
+
+    def __str__(self):
+        return f"{self.course.title} - {self.title}"
+
+    @property
+    def total_lessons(self):
+        """Returns the number of lessons in this module."""
+        return self.lessons.count()
+    
+
+class Lesson(models.Model):
+    """
+    Represents a single lesson within a module.
+    """
+
+    CONTENT_TYPE_CHOICES = (
+        ('video', 'Video'),
+        ('article', 'Article'),
+        ('quiz', 'Quiz'),
+        ('assignment', 'Assignment'),
+    )
+
+    module = models.ForeignKey(
+        Module,
+        on_delete=models.CASCADE,
+        related_name='lessons'
+    )
+
+    title = models.CharField(max_length=200)
+    content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES, default='video')
+    content = models.TextField(help_text="Text content or video embed code")
+    video_url = models.URLField(blank=True, null=True, help_text="YouTube or Vimeo URL")
+    attachments = models.FileField(upload_to='lessons/attachments/', blank=True, null=True)
+    duration_minutes = models.PositiveIntegerField(default=0, help_text="Lesson duration in minutes")
+    order = models.PositiveIntegerField(default=0)
+    is_free = models.BooleanField(default=False, help_text="Free preview lesson")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Lesson'
+        verbose_name_plural = 'Lessons'
+        ordering = ['order']
+        unique_together = ['module', 'order']
+
+    def __str__(self):
+        return f"{self.module.title} - {self.title}"
