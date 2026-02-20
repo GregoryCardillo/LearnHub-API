@@ -7,6 +7,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from .filters import CourseFilter, EnrollmentFilter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
+
 
 
 from .models import Course, Module, Lesson, Enrollment, Progress
@@ -63,20 +66,91 @@ from .filters import CourseFilter, EnrollmentFilter
 
 class CourseListView(generics.ListCreateAPIView):
     """
-    GET  /api/courses/  → List all published courses
-    POST /api/courses/  → Create a new course (instructors only)
+    List all published courses or create a new course.
     
-    Supports:
-    - Filtering: ?level=beginner&min_price=0&max_price=50&is_free=true
-    - Search: ?search=python
-    - Ordering: ?ordering=-created_at (newest first)
+    **List (GET)**: Returns paginated list of all published courses with filtering, 
+    search, and ordering options.
+    
+    **Create (POST)**: Allows instructors to create new courses. Students cannot 
+    create courses.
+    
+    ### Filtering
+    - `level`: beginner, intermediate, advanced
+    - `min_price`, `max_price`: Price range
+    - `is_free`: true/false
+    - `instructor_email`: Filter by instructor email
+    
+    ### Search
+    Search in title, description, and instructor name using `?search=keyword`
+    
+    ### Ordering
+    Order results using `?ordering=field_name`
+    - `created_at`: Creation date (use `-created_at` for descending)
+    - `price`: Course price
+    - `title`: Alphabetical order
     """
     permission_classes = [CanCreateCourse]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = CourseFilter
     search_fields = ['title', 'description', 'instructor__first_name', 'instructor__last_name']
     ordering_fields = ['created_at', 'price', 'title']
-    ordering = ['-created_at']  # Default ordering
+    ordering = ['-created_at']
+    
+    @extend_schema(
+        tags=['Courses'],
+        summary='List all published courses',
+        description='Returns paginated list of all published courses with advanced filtering and search',
+        parameters=[
+            OpenApiParameter(
+                name='level',
+                description='Filter by course level',
+                required=False,
+                type=str,
+                enum=['beginner', 'intermediate', 'advanced']
+            ),
+            OpenApiParameter(
+                name='min_price',
+                description='Minimum price filter',
+                required=False,
+                type=float
+            ),
+            OpenApiParameter(
+                name='max_price',
+                description='Maximum price filter',
+                required=False,
+                type=float
+            ),
+            OpenApiParameter(
+                name='is_free',
+                description='Filter free courses only',
+                required=False,
+                type=bool
+            ),
+            OpenApiParameter(
+                name='search',
+                description='Search in title, description, and instructor name',
+                required=False,
+                type=str
+            ),
+            OpenApiParameter(
+                name='ordering',
+                description='Order results by field (use - for descending)',
+                required=False,
+                type=str,
+                enum=['created_at', '-created_at', 'price', '-price', 'title', '-title']
+            ),
+        ]
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+    
+    @extend_schema(
+        tags=['Courses'],
+        summary='Create a new course',
+        description='Create a new course (instructors only)',
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
     
     def get_queryset(self):
         """Return published courses with optimized queries."""
@@ -299,11 +373,37 @@ def complete_lesson(request, enrollment_id, lesson_id):
 
 class RegisterView(generics.CreateAPIView):
     """
-    POST /api/auth/register/  → Register a new user
+    Register a new user account.
+    
+    Creates a new user with the specified role (student or instructor) and returns
+    authentication tokens for immediate login.
     """
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
     
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Register a new user',
+        description='Create a new user account with student or instructor role',
+        responses={
+            201: UserProfileSerializer,
+            400: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                'Student Registration',
+                value={
+                    'email': 'student@example.com',
+                    'password': 'securepass123',
+                    'password_confirm': 'securepass123',
+                    'first_name': 'John',
+                    'last_name': 'Doe',
+                    'role': 'student'
+                },
+                request_only=True,
+            ),
+        ]
+    )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -518,10 +618,24 @@ class LessonCreateView(generics.CreateAPIView):
 
 class StudentDashboardView(generics.GenericAPIView):
     """
-    GET /api/student/dashboard/  → Get student dashboard with stats
+    Get student dashboard with comprehensive statistics and enrollments.
+    
+    Returns detailed information about the student's learning progress including:
+    - Overall statistics (total courses, completed courses, time spent)
+    - Active enrollments with progress tracking
+    - Completed enrollments with certificates
+    - Next lessons to complete
     """
     permission_classes = [IsAuthenticated, IsStudent]
     
+    @extend_schema(
+        tags=['Student Dashboard'],
+        summary='Get student dashboard',
+        description='Returns comprehensive dashboard with statistics and enrollment details',
+        responses={
+            200: OpenApiTypes.OBJECT,
+        }
+    )
     def get(self, request):
         """Return student statistics and enrollments."""
         student = request.user

@@ -29,7 +29,8 @@ INSTALLED_APPS = [
     #Third party apps
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
-    'django_filters'
+    'django_filters',
+    'drf_spectacular',
 
     #Local apps
     'courses',
@@ -151,6 +152,10 @@ REST_FRAMEWORK = {
         'anon': '100/hour',  # Anonymous users: 100 requests per hour
         'user': '1000/hour',  # Authenticated users: 1000 requests per hour
     },
+
+    # API Documentation with drf-spectacular
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',  # ← Aggiungi questo
+
 }
 
 # JWT Setting
@@ -175,4 +180,76 @@ SIMPLE_JWT = {
     
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+# API Documentation Settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'E-Learning Platform API',
+    'DESCRIPTION': '''
+    A comprehensive RESTful API for an e-learning platform built with Django and Django REST Framework.
+    
+    ## Features
+    - **Authentication**: JWT-based authentication with access and refresh tokens
+    - **User Management**: Student and Instructor roles with custom permissions
+    - **Course Management**: Create, update, and manage courses with modules and lessons
+    - **Enrollment System**: Students can enroll in courses and track their progress
+    - **Progress Tracking**: Automatic progress tracking with completion percentages
+    - **Quiz System**: Interactive quizzes with multiple question types
+    - **Advanced Filtering**: Filter courses by price, level, instructor, and more
+    - **Search & Ordering**: Full-text search and customizable result ordering
+    
+    ## Authentication
+    Most endpoints require authentication. To authenticate:
+    1. Register a new account at `/api/auth/register/`
+    2. Login at `/api/auth/login/` to receive access and refresh tokens
+    3. Include the access token in the Authorization header: `Authorization: Bearer <token>`
+    4. Refresh expired tokens at `/api/auth/refresh/`
+    
+    ## Roles
+    - **Student**: Can enroll in courses, track progress, take quizzes, and view certificates
+    - **Instructor**: Can create and manage courses, modules, lessons, and view enrolled students
+    
+    ## Rate Limiting
+    - Anonymous users: 100 requests/hour
+    - Authenticated users: 1000 requests/hour
+    ''',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    
+    # Authentication
+    'SECURITY': [
+        {
+            'bearerAuth': []
+        }
+    ],
+    'COMPONENT_SPLIT_REQUEST': True,
+    
+    # API Info
+    'CONTACT': {
+        'name': 'API Support',
+        'email': 'support@elearning.com'
+    },
+    'LICENSE': {
+        'name': 'MIT License',
+    },
+    
+    # Swagger UI settings
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+        'filter': True,
+    },
+    
+    # Tags for grouping endpoints
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'User registration, login, and token management'},
+        {'name': 'Users', 'description': 'User profile management'},
+        {'name': 'Courses', 'description': 'Browse and manage courses'},
+        {'name': 'Modules', 'description': 'Course modules and lessons'},
+        {'name': 'Enrollments', 'description': 'Student enrollments and progress tracking'},
+        {'name': 'Instructor', 'description': 'Instructor-specific endpoints'},
+        {'name': 'Student Dashboard', 'description': 'Student dashboard and statistics'},
+        {'name': 'Progress', 'description': 'Lesson completion and progress tracking'},
+    ],
 }
