@@ -21,6 +21,16 @@ from .serializers import (
     ChangePasswordSerializer,
 )
 
+from .permissions import (
+    IsInstructor,
+    IsStudent,
+    IsOwnerOrReadOnly,
+    IsCourseInstructor,
+    IsEnrolled,
+    IsEnrolledOrFree,
+    IsEnrollmentOwner,
+    CanCreateCourse,
+)
 
 # ============================================
 # USER VIEWS
@@ -48,7 +58,7 @@ class CourseListView(generics.ListCreateAPIView):
     GET  /api/courses/  → List all published courses
     POST /api/courses/  → Create a new course (instructors only)
     """
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [CanCreateCourse]
     
     def get_queryset(self):
         """Return published courses with optimized queries."""
@@ -74,7 +84,7 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     PUT    /api/courses/{slug}/  → Update course (owner only)
     DELETE /api/courses/{slug}/  → Delete course (owner only)
     """
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly, IsCourseInstructor]
     lookup_field = 'slug'
     
     def get_queryset(self):
@@ -142,7 +152,7 @@ class EnrollmentListView(generics.ListAPIView):
     GET /api/enrollments/  → List current user's enrollments
     """
     serializer_class = EnrollmentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsStudent]
     
     def get_queryset(self):
         """Return only the current user's enrollments."""
@@ -201,7 +211,7 @@ class EnrollmentProgressView(generics.ListAPIView):
     GET /api/enrollments/{enrollment_id}/progress/  → Get progress for an enrollment
     """
     serializer_class = ProgressSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsEnrollmentOwner]
     
     def get_queryset(self):
         """Get progress records for a specific enrollment."""
