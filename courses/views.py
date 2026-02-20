@@ -1,10 +1,13 @@
-from rest_framework import generics, status
+from rest_framework import generics, status, filters
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
+from .filters import CourseFilter, EnrollmentFilter
+
 
 from .models import Course, Module, Lesson, Enrollment, Progress
 from .serializers import (
@@ -54,12 +57,26 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 # COURSE VIEWS
 # ============================================
 
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+from .filters import CourseFilter, EnrollmentFilter
+
 class CourseListView(generics.ListCreateAPIView):
     """
     GET  /api/courses/  → List all published courses
     POST /api/courses/  → Create a new course (instructors only)
+    
+    Supports:
+    - Filtering: ?level=beginner&min_price=0&max_price=50&is_free=true
+    - Search: ?search=python
+    - Ordering: ?ordering=-created_at (newest first)
     """
     permission_classes = [CanCreateCourse]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = CourseFilter
+    search_fields = ['title', 'description', 'instructor__first_name', 'instructor__last_name']
+    ordering_fields = ['created_at', 'price', 'title']
+    ordering = ['-created_at']  # Default ordering
     
     def get_queryset(self):
         """Return published courses with optimized queries."""
@@ -151,12 +168,26 @@ class ModuleLessonListView(generics.ListAPIView):
 class EnrollmentListView(generics.ListAPIView):
     """
     GET /api/enrollments/  → List current user's enrollments
+    
+    Supports:
+    - Filtering: ?is_completed=false&is_active=true&progress_min=50
+    - Ordering: ?ordering=-enrolled_at
     """
     serializer_class = EnrollmentSerializer
     permission_classes = [IsAuthenticated, IsStudent]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = EnrollmentFilter
+    ordering_fields = ['enrolled_at', 'completed_at']
+    ordering = ['-enrolled_at']
     
     def get_queryset(self):
-        """Return only the current user's enrollments."""
+        """
+        Return only the current user's enrollments.
+        Optimized with select_related and prefetch_related.
+        """
+        from django.db.models import Count, Q, Case, When, FloatField, F, Value
+        from django.db.models.functions import Cast
+        
         return Enrollment.objects.filter(
             student=self.request.user,
             is_active=True
@@ -164,7 +195,16 @@ class EnrollmentListView(generics.ListAPIView):
             'course__instructor'
         ).prefetch_related(
             'progress_records'
+        ).annotate(
+            # Pre-calculate progress for better performance
+            total_progress=Count('progress_records', distinct=True),
+            completed_progress=Count(
+                'progress_records',
+                filter=Q(progress_records__completed=True),
+                distinct=True
+            )
         )
+
 
 
 @api_view(['POST'])
@@ -384,9 +424,17 @@ def verify_token(request):
 class InstructorCourseListView(generics.ListAPIView):
     """
     GET /api/instructor/courses/  → List courses created by the current instructor
+    
+    Supports:
+    - Filtering: ?status=published
+    - Ordering: ?ordering=-created_at
     """
     serializer_class = CourseListSerializer
     permission_classes = [IsAuthenticated, IsInstructor]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['status', 'level']
+    ordering_fields = ['created_at', 'title', 'price']
+    ordering = ['-created_at']
     
     def get_queryset(self):
         """Return only courses created by the current instructor."""
