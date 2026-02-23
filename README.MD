@@ -1,4 +1,4 @@
-# 🎓 E-Learning Platform API
+# 🎓 LearnHub-API
 
 A comprehensive and production-ready RESTful API for an e-learning platform built with Django and Django REST Framework.
 
@@ -137,8 +137,8 @@ Enrollment
 
 1. **Clone the repository**
 ```bash
-   git clone https://github.com/yourusername/django-elearning-platform-api.git
-   cd django-elearning-platform-api
+   git clone https://github.com/yourusername/LearnHub-API.git
+   cd LearnHub-API
 ```
 
 2. **Create and activate virtual environment**

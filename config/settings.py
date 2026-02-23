@@ -187,7 +187,7 @@ SIMPLE_JWT = {
 
 # API Documentation Settings
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'E-Learning Platform API',
+    'TITLE': 'LearnHub-API',
     'DESCRIPTION': '''
     A comprehensive RESTful API for an e-learning platform built with Django and Django REST Framework.
     
